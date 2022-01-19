@@ -228,6 +228,8 @@ class SnakeGoalEnv(gym.GoalEnv):
     def _get_rew(self):
         if self.snake_head == self.food:
             reward = 1
+            self.snake_length += 1
+            self.generate_food()
         else:
             reward = 0
 
@@ -255,9 +257,10 @@ class SnakeGoalEnv(gym.GoalEnv):
     def compute_reward(self, achieved_goal, goal, info):
         # Compute distance between goal and the achieved goal.
         if np.array_equal(achieved_goal, goal):
-            return 1
+            reward = 1
         else:
-            return 0
+            reward = 0
+        return reward
 
 
 class SnakeGoalEnvFlatObs(SnakeGoalEnv):

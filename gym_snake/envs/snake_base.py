@@ -108,6 +108,7 @@ class SnakeEnv(gym.Env):
         self.observation_space = self.obs_functions[obs_type]["observation_space"]
         self._get_obs = self.obs_functions[obs_type]["_get_obs"]
         self._get_rew = self.rew_functions[rew_type]
+        self.game_won = False
 
         self.seed()
         self.viewer = None
@@ -159,6 +160,7 @@ class SnakeEnv(gym.Env):
             or self.snake_head[0] >= self.screen_width
             or self.snake_head[1] >= self.screen_height
             or self.snake_head in self.snake[:-1]
+            or self.game_won
         )
 
         if not done:
@@ -166,7 +168,8 @@ class SnakeEnv(gym.Env):
             self.update_grid()
         elif self.steps_beyond_done is None:
             # Negative reward for dying
-            reward = -100
+            if not self.game_won:
+                reward = -100
             self.steps_beyond_done = 0
         else:
             if self.steps_beyond_done == 0:
@@ -183,6 +186,8 @@ class SnakeEnv(gym.Env):
         return obs, reward, done, {}
 
     def reset(self):
+        self.game_won = False
+
         # Spawn new snake head and food
         self.snake_head = (random.randint(0, self.screen_width-1), random.randint(0, self.screen_height-1))
         self.snake_length = 1
@@ -233,7 +238,11 @@ class SnakeEnv(gym.Env):
 
     def generate_food(self):
         possible_spaces = set(self.all_spaces) - set(self.snake)
-        self.food = random.choice(list(possible_spaces))
+        if possible_spaces:
+            self.food = random.choice(list(possible_spaces))
+        else:
+            # No remaining spaces, game has be won
+            self.game_won = True
 
     def render(self, mode='human', close=False, frame_speed=.0001):
         if self.viewer is None:
@@ -309,6 +318,8 @@ class SnakeEnv(gym.Env):
     def _get_rew_sparse(self):
         if self.snake_head == self.food:
             reward = 10
+            self.snake_length += 1
+            self.generate_food()
         else:
             reward = 0
 
