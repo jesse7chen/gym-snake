@@ -9,5 +9,8 @@ setup(
         'gym',
         'numpy',
         'matplotlib'
-    ]
+    ],
+    extras_require={
+        'imitation_scripts': ["imitation", "stable_baselines3"]
+    }
 )
