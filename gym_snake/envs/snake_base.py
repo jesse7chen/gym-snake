@@ -4,7 +4,8 @@ from gym import spaces, logger
 import numpy as np
 import matplotlib.pyplot as plt
 from gym.envs.registration import register
-
+from gym_snake.base.direc import Direc
+from gym_snake.base.pos import Pos
 
 class SnakeEnv(gym.Env):
     """
@@ -63,11 +64,6 @@ class SnakeEnv(gym.Env):
     FOOD_BLOCK = 2
     HEAD_BLOCK = 3
 
-    UP = 0
-    RIGHT = 1
-    DOWN = 2
-    LEFT = 3
-
     def __init__(self, obs_type: str = "flat", rew_type: str = "dense",
                  screen_width: int = 15, screen_height: int = 15):
 
@@ -99,7 +95,7 @@ class SnakeEnv(gym.Env):
         }
 
         self.snake_length = 1
-        self.cur_direction = (0, 0)
+        self.cur_direction = Direc.NONE
         self.is_closer = False
         self.snake = []
         self.snake_head = None
@@ -114,7 +110,7 @@ class SnakeEnv(gym.Env):
         self.viewer = None
         self.fig = None
         self.grid = np.zeros((self.screen_width, self.screen_height), dtype=np.uint8)
-        self.all_spaces = [(x, y) for x in range(self.screen_width) for y in range(self.screen_height)]
+        self.all_spaces = [Pos(x, y) for x in range(self.screen_width) for y in range(self.screen_height)]
 
         self.steps_beyond_done = None
 
@@ -123,27 +119,14 @@ class SnakeEnv(gym.Env):
         assert self.action_space.contains(action), err_msg
 
         # Move snake
-        if action == self.UP:
-            if self.cur_direction != (0, -1):
-                self.cur_direction = (0, 1)
-        elif action == self.RIGHT:
-            if self.cur_direction != (-1, 0):
-                self.cur_direction = (1, 0)
-        elif action == self.DOWN:
-            if self.cur_direction != (0, 1):
-                self.cur_direction = (0, -1)
-        else:
-            if self.cur_direction != (1, 0):
-                self.cur_direction = (-1, 0)
+        self.cur_direction = action
 
-        old_distance = abs(self.snake_head[0] - self.food[0]) + abs(self.snake_head[1] - self.food[1])
+        old_distance = Pos.manhattan_dist(self.snake_head, self.food)
 
-        self.snake_head = (self.snake_head[0] + self.cur_direction[0], self.snake_head[1] + self.cur_direction[1])
+        self.snake_head = self.snake_head.adj(self.cur_direction)
         self.snake.append(self.snake_head)
-        if len(self.snake) > self.snake_length:
-            del self.snake[0]
 
-        new_distance = abs(self.snake_head[0] - self.food[0]) + abs(self.snake_head[1] - self.food[1])
+        new_distance = Pos.manhattan_dist(self.snake_head, self.food)
 
         if new_distance < old_distance:
             self.is_closer = True
@@ -153,12 +136,14 @@ class SnakeEnv(gym.Env):
         # Get reward
         reward = self._get_rew()
 
+        # Important for this to be done after _get_rew() since that is where
+        # snake length is updated
+        if len(self.snake) > self.snake_length:
+            del self.snake[0]
+
         # Check for episode termination
         done = bool(
-            self.snake_head[0] < 0
-            or self.snake_head[1] < 0
-            or self.snake_head[0] >= self.screen_width
-            or self.snake_head[1] >= self.screen_height
+            self.out_of_bounds(self.snake_head)
             or self.snake_head in self.snake[:-1]
             or self.game_won
         )
@@ -169,7 +154,7 @@ class SnakeEnv(gym.Env):
         elif self.steps_beyond_done is None:
             # Negative reward for dying
             if not self.game_won:
-                reward = -100
+                reward = -100.0
             self.steps_beyond_done = 0
         else:
             if self.steps_beyond_done == 0:
@@ -189,8 +174,9 @@ class SnakeEnv(gym.Env):
         self.game_won = False
 
         # Spawn new snake head and food
-        self.snake_head = (random.randint(0, self.screen_width-1), random.randint(0, self.screen_height-1))
+        self.snake_head = Pos(random.randint(0, self.screen_width-1), random.randint(0, self.screen_height-1))
         self.snake_length = 1
+        self.cur_direction = Direc.NONE
         self.snake = []
         self.snake.append(self.snake_head)
         self.generate_food()
@@ -204,9 +190,9 @@ class SnakeEnv(gym.Env):
     def update_grid(self):
         self.grid = np.zeros((self.screen_width, self.screen_height), dtype=np.uint8)
         for s in self.snake:
-            self.grid[s] = self.SNAKE_BLOCK
-        self.grid[self.food] = self.FOOD_BLOCK
-        self.grid[self.snake_head] = self.HEAD_BLOCK
+            self.grid[s.to_tuple()] = self.SNAKE_BLOCK
+        self.grid[self.food.to_tuple()] = self.FOOD_BLOCK
+        self.grid[self.snake_head.to_tuple()] = self.HEAD_BLOCK
 
     def draw_image(self):
         # Render an image of the screen
@@ -223,10 +209,10 @@ class SnakeEnv(gym.Env):
         image[:, :, :] = SPACE_COLOR
 
         def fill_block(coord, color):
-            x = int(coord[0]*unit_size)
-            end_x = x+unit_size
-            y = int(coord[1]*unit_size)
-            end_y = y+unit_size
+            x = int(coord.x * unit_size)
+            end_x = x + unit_size
+            y = int(coord.y * unit_size)
+            end_y = y + unit_size
             image[y:end_y, x:end_x, :] = np.asarray(color, dtype=np.uint8)
 
         for s in self.snake:
@@ -252,7 +238,7 @@ class SnakeEnv(gym.Env):
             self.fig.show()
         else:
             self.viewer.clear()
-            self.viewer.imshow(self.draw_image())
+            self.viewer.imshow(self.draw_image(), origin='lower')
             plt.pause(frame_speed)
         self.fig.canvas.draw()
 
@@ -260,6 +246,12 @@ class SnakeEnv(gym.Env):
         if self.viewer:
             plt.close()
             self.viewer = None
+
+    def out_of_bounds(self, pos):
+        if pos.x < 0 or pos.y < 0 or pos.x >= self.screen_width or pos.y >= self.screen_height:
+            return True
+        else:
+            return False
 
     # Variant methods
     # ----------------------------
@@ -277,19 +269,16 @@ class SnakeEnv(gym.Env):
         # Check to see where apple is in respect to snake head location
         state = list()
         # Store information about relative food information
-        state.append(int(self.snake_head[1] < self.food[1]))
-        state.append(int(self.snake_head[0] < self.food[0]))
-        state.append(int(self.snake_head[1] > self.food[1]))
-        state.append(int(self.snake_head[0] > self.food[0]))
+        state.append(int(self.snake_head.y < self.food.y))
+        state.append(int(self.snake_head.x < self.food.x))
+        state.append(int(self.snake_head.y > self.food.y))
+        state.append(int(self.snake_head.x > self.food.x))
 
         # Store information about relative obstacle information
-        adjacent_squares = [(self.snake_head[0], self.snake_head[1] + 1),  # above snake
-                            (self.snake_head[0] + 1, self.snake_head[1]),  # right of snake
-                            (self.snake_head[0], self.snake_head[1] - 1),  # below snake
-                            (self.snake_head[0] - 1, self.snake_head[1])]  # left of snake
+        adjacent_squares = self.snake_head.all_adj()
         for s in adjacent_squares:
-            if s[0] < 0 or s[1] < 0 or s[0] >= self.screen_width \
-              or s[1] >= self.screen_height:
+            if s.x < 0 or s.y < 0 or s.x >= self.screen_width \
+              or s.y >= self.screen_height:
                 state.append(1)
             elif len(self.snake) > 3 and s in self.snake[3:]:
                 state.append(1)
@@ -297,31 +286,31 @@ class SnakeEnv(gym.Env):
                 state.append(0)
 
         # Store information about direction
-        state.append(self.cur_direction == (0, 1))
-        state.append(self.cur_direction == (1, 0))
-        state.append(self.cur_direction == (0, -1))
-        state.append(self.cur_direction == (-1, 0))
+        state.append(self.cur_direction == Direc.UP)
+        state.append(self.cur_direction == Direc.RIGHT)
+        state.append(self.cur_direction == Direc.DOWN)
+        state.append(self.cur_direction == Direc.LEFT)
         return np.array(state, dtype=np.uint8)
 
     def _get_rew_dense(self):
         if self.snake_head == self.food:
-            reward = 10
+            reward = 10.0
             self.snake_length += 1
             self.generate_food()
         elif self.is_closer:
-            reward = 1
+            reward = 1.0
         else:
-            reward = -1
+            reward = -1.0
 
         return reward
 
     def _get_rew_sparse(self):
         if self.snake_head == self.food:
-            reward = 10
+            reward = 10.0
             self.snake_length += 1
             self.generate_food()
         else:
-            reward = 0
+            reward = 0.0
 
         return reward
 
