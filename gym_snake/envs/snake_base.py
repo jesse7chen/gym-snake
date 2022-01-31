@@ -15,7 +15,7 @@ class SnakeEnv(gym.Env):
     Observation:
         Dependent upon variant of environment used
             flat: Flattened grid of length screen_width*screen_length
-            grid: Grid of size (screen_width, screen_length)
+            grid: Grid of size (1, screen_width, screen_length)
             simple: Vector of features describing environment - taken from
                 https://towardsdatascience.com/snake-played-by-a-deep-reinforcement-learning-agent-53f2c4331d36
                 Apple is above snake head:                  bool
@@ -196,9 +196,9 @@ class SnakeEnv(gym.Env):
 
     def draw_image(self):
         # Render an image of the screen
-        SNAKE_COLOR = np.array([1,0,0], dtype=np.uint8)
+        SNAKE_COLOR = np.array([255,192,65], dtype=np.uint8)
         FOOD_COLOR = np.array([0,0,255], dtype=np.uint8)
-        SPACE_COLOR = np.array([0,255,0], dtype=np.uint8)
+        SPACE_COLOR = np.array([0,0,0], dtype=np.uint8)
         HEAD_COLOR = np.array([255,0,0], dtype=np.uint8)
         unit_size = 10
 
