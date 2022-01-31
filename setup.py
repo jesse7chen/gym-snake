@@ -11,6 +11,6 @@ setup(
         'matplotlib'
     ],
     extras_require={
-        'imitation_scripts': ["imitation", "stable_baselines3"]
+        'imitation_scripts': ["imitation", "stable_baselines3", "keyboard"]
     }
 )
