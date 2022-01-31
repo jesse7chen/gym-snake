@@ -6,7 +6,7 @@ as well as heuristic-based agents and trajectory generation scripts.
     cd gym-snake
     # For installation of environments only
     pip install -e .
-    # For installation of trajectory generation  scripts
+    # For installation of trajectory generation scripts
     pip install -e .[imitation_scripts]
     
 ## Environment Description
