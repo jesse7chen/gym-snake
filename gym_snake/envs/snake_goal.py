@@ -3,7 +3,7 @@ from gym import spaces, logger
 import numpy as np
 from gym.envs.registration import register
 from gym_snake.envs.snake_base import SnakeEnv
-
+from gym_snake.base.direc import Direc
 
 class SnakeGoalEnv(SnakeEnv, gym.GoalEnv):
     """
@@ -34,12 +34,15 @@ class SnakeGoalEnv(SnakeEnv, gym.GoalEnv):
         Snake head hits a wall or part of its own body
     """
 
-    def __init__(self, obs_type: str = "flat", screen_width: int = 15, screen_height: int = 15):
+    def __init__(self, obs_type: str = "flat", screen_width: int = 8, screen_height: int = 8,
+                 prevent_opposite_travel: bool = False, max_timesteps: int = None
+                 ):
 
         assert screen_width <= 255, "Screen width must be less than 256 due to uint8 overflow"
         assert screen_height <= 255, "Screen high must be less than 256 due to uint8 overflow"
 
-        super(SnakeGoalEnv, self).__init__(screen_width=screen_width, screen_height=screen_height)
+        super(SnakeGoalEnv, self).__init__(screen_width=screen_width, screen_height=screen_height,
+                                           prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
         self.obs_functions = {
             "flat":
@@ -74,7 +77,13 @@ class SnakeGoalEnv(SnakeEnv, gym.GoalEnv):
         assert self.action_space.contains(action), err_msg
 
         # Move snake
-        self.cur_direction = action
+        if self.prevent_opposite_travel is False:
+            self.cur_direction = action
+        else:
+            # Only update action if it is not in the opposite direction of current travel
+            if Direc.opposite(action) != self.cur_direction:
+                self.cur_direction = action
+
         self.snake_head = self.snake_head.adj(self.cur_direction)
         self.snake.append(self.snake_head)
 
@@ -91,6 +100,14 @@ class SnakeGoalEnv(SnakeEnv, gym.GoalEnv):
             self.out_of_bounds(self.snake_head)
             or self.snake_head in self.snake[:-1]
         )
+
+        self.num_timesteps += 1
+        if self.max_timesteps is not None:
+            if self.num_timesteps >= self.max_timesteps:
+                logger.info(
+                    "Max episode length reached, terminating episode"
+                )
+                done = True
 
         if not done:
             # Only draw new grid if not done
@@ -150,13 +167,17 @@ class SnakeGoalEnv(SnakeEnv, gym.GoalEnv):
 
 
 class SnakeGoalEnvFlatObs(SnakeGoalEnv):
-    def __init__(self, screen_width: int = 15, screen_height: int = 15):
-        super().__init__(obs_type="flat", screen_width=screen_width, screen_height=screen_height)
+    def __init__(self, screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
+        super().__init__(obs_type="flat", screen_width=screen_width, screen_height=screen_height,
+                         prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
 
 class SnakeGoalEnvGridObs(SnakeGoalEnv):
-    def __init__(self, screen_width: int = 15, screen_height: int = 15):
-        super().__init__(obs_type="grid", screen_width=screen_width, screen_height=screen_height)
+    def __init__(self, screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
+        super().__init__(obs_type="grid", screen_width=screen_width, screen_height=screen_height,
+                         prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
 
 register(

@@ -65,10 +65,13 @@ class SnakeEnv(gym.Env):
     HEAD_BLOCK = 3
 
     def __init__(self, obs_type: str = "flat", rew_type: str = "dense",
-                 screen_width: int = 15, screen_height: int = 15):
+                 screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
 
         self.screen_width = screen_width
         self.screen_height = screen_height
+        self.prevent_opposite_travel = prevent_opposite_travel
+        self.max_timesteps = max_timesteps
         self.obs_functions = {
             "flat":
                 {
@@ -113,13 +116,19 @@ class SnakeEnv(gym.Env):
         self.all_spaces = [Pos(x, y) for x in range(self.screen_width) for y in range(self.screen_height)]
 
         self.steps_beyond_done = None
+        self.num_timesteps = 0
 
     def step(self, action):
         err_msg = f"{action!r} ({type(action)}) invalid"
         assert self.action_space.contains(action), err_msg
 
         # Move snake
-        self.cur_direction = action
+        if self.prevent_opposite_travel is False:
+            self.cur_direction = action
+        else:
+            # Only update action if it is not in the opposite direction of current travel
+            if Direc.opposite(action) != self.cur_direction:
+                self.cur_direction = action
 
         old_distance = Pos.manhattan_dist(self.snake_head, self.food)
 
@@ -142,18 +151,28 @@ class SnakeEnv(gym.Env):
             del self.snake[0]
 
         # Check for episode termination
-        done = bool(
+        snake_dead = bool(
             self.out_of_bounds(self.snake_head)
             or self.snake_head in self.snake[:-1]
-            or self.game_won
         )
+
+        self.num_timesteps += 1
+        timeout = False
+        if self.max_timesteps is not None:
+            if self.num_timesteps >= self.max_timesteps:
+                logger.info(
+                    "Max episode length reached, terminating episode"
+                )
+                timeout = True
+
+        done = self.game_won or snake_dead or timeout
 
         if not done:
             # Only draw new grid if not done
             self.update_grid()
         elif self.steps_beyond_done is None:
             # Negative reward for dying
-            if not self.game_won:
+            if snake_dead:
                 reward = -100.0
             self.steps_beyond_done = 0
         else:
@@ -185,6 +204,7 @@ class SnakeEnv(gym.Env):
         self.update_grid()
         obs = self._get_obs()
         self.steps_beyond_done = None
+        self.num_timesteps = 0
         return obs
 
     def update_grid(self):
@@ -316,33 +336,45 @@ class SnakeEnv(gym.Env):
 
 
 class SnakeEnvFlatObsDenseReward(SnakeEnv):
-    def __init__(self, screen_width: int = 15, screen_height: int = 15):
-        super().__init__(obs_type="flat", rew_type="dense", screen_width=screen_width, screen_height=screen_height)
+    def __init__(self, screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
+        super().__init__(obs_type="flat", rew_type="dense", screen_width=screen_width, screen_height=screen_height,
+                         prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
 
 class SnakeEnvGridObsDenseReward(SnakeEnv):
-    def __init__(self, screen_width: int = 15, screen_height: int = 15):
-        super().__init__(obs_type="grid", rew_type="dense", screen_width=screen_width, screen_height=screen_height)
+    def __init__(self, screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
+        super().__init__(obs_type="grid", rew_type="dense", screen_width=screen_width, screen_height=screen_height,
+                         prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
 
 class SnakeEnvSimpleObsDenseReward(SnakeEnv):
-    def __init__(self, screen_width: int = 15, screen_height: int = 15):
-        super().__init__(obs_type="simple", rew_type="dense", screen_width=screen_width, screen_height=screen_height)
+    def __init__(self, screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
+        super().__init__(obs_type="simple", rew_type="dense", screen_width=screen_width, screen_height=screen_height,
+                         prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
 
 class SnakeEnvFlatObsSparseReward(SnakeEnv):
-    def __init__(self, screen_width: int = 15, screen_height: int = 15):
-        super().__init__(obs_type="flat", rew_type="sparse", screen_width=screen_width, screen_height=screen_height)
+    def __init__(self, screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
+        super().__init__(obs_type="flat", rew_type="sparse", screen_width=screen_width, screen_height=screen_height,
+                         prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
 
 class SnakeEnvGridObsSparseReward(SnakeEnv):
-    def __init__(self, screen_width: int = 15, screen_height: int = 15):
-        super().__init__(obs_type="grid", rew_type="sparse", screen_width=screen_width, screen_height=screen_height)
+    def __init__(self, screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
+        super().__init__(obs_type="grid", rew_type="sparse", screen_width=screen_width, screen_height=screen_height,
+                         prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
 
 class SnakeEnvSimpleObsSparseReward(SnakeEnv):
-    def __init__(self, screen_width: int = 15, screen_height: int = 15):
-        super().__init__(obs_type="simple", rew_type="sparse", screen_width=screen_width, screen_height=screen_height)
+    def __init__(self, screen_width: int = 8, screen_height: int = 8, prevent_opposite_travel: bool = False,
+                 max_timesteps: int = None):
+        super().__init__(obs_type="simple", rew_type="sparse", screen_width=screen_width, screen_height=screen_height,
+                         prevent_opposite_travel=prevent_opposite_travel, max_timesteps=max_timesteps)
 
 
 register(

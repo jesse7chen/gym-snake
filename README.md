@@ -20,6 +20,22 @@ would be SnakeEnv-FlatObs-DenseReward-v0.
 
 In addition, a set of goal environments with flat and grid observation spaces are also provided.
 
+### Optional environment constructor arguments
+screen_width: Width of the screen
+
+screen_height: Height of the screen
+
+prevent_opposite_travel: Prevent the snake from moving in the opposite direction of current travel.
+This may be useful as it makes it more difficult for the agent to get stuck in loops of going back and forth, and
+also prevents the agent from automatically dying by traveling in the opposite direction when it has a length of 3 or
+greater.
+
+max_timesteps: End the episode after a certain number of steps. Useful when running evaluations of agent
+as it prevents the agent from getting stuck in an infinite loop. Originally made because the TimeLimit wrapper used in
+rl-baselines3-zoo will not count an episode that was terminated because of the TimeLimit wrapper as a completed 
+evaluation episode, which led to very long evaluation periods (if one was aiming to get a certain number of evaluation
+episodes before terminating)
+
 ### Description of observation, reward, and action spaces
     Observation:
         Dependent upon variant of environment used
